@@ -2,6 +2,8 @@ import google.generativeai as genai
 import edge_tts
 import os
 from dotenv import load_dotenv
+from datetime import datetime
+import feedparser
 
 load_dotenv()
 
@@ -9,20 +11,39 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
+def get_hot_topics():
+    # 구글 뉴스 대한민국(KR) 주요 뉴스 피드
+    rss_url = "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko"
+    feed = feedparser.parse(rss_url)
+    
+    hot_topics = []
+    # 상위 5개만 가져오기
+    for entry in feed.entries[:5]:
+        hot_topics.append(entry.title)
+        
+    return hot_topics
+
 # 2. 대본 작성 함수 (Gemini)
 def generate_script(topic: str):
     model = genai.GenerativeModel("gemini-2.5-flash")
     
-    # 프롬프트: 쇼츠 스타일에 맞게 짧고 굵게 써달라고 시킴
+    # [1] 오늘 날짜를 구합니다 (예: "2025년 12월 16일")
+    today_date = datetime.now().strftime("%Y년 %m월 %d일")
+
+    # [2] 프롬프트에 날짜를 명시하고, "과거가 아닌 현재 시점"을 강조합니다.
     prompt = f"""
     당신은 인기 있는 유튜브 쇼츠 뉴스 캐스터입니다.
+    
+    [중요]
+    - 오늘 날짜: {today_date}
+    - {today_date} 현재 시점에서 가장 최신 근황이나 이슈를 다루세요.
+    
     주제: '{topic}'
 
-    최신 정보를 바탕으로 위 주제에 대해 50초 내외로 읽을 수 있는 흥미로운 대본을 작성해주세요.
+    위 주제에 대해 50초 내외로 읽을 수 있는 흥미로운 대본을 작성해주세요.
     반말(친구에게 말하듯이)로 작성하고, 이모지를 적절히 섞어주세요.
     불필요한 서론 없이 바로 본론으로 들어가세요.
     """
-    
     response = model.generate_content(prompt)
     return response.text
 

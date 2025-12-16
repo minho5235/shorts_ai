@@ -1,123 +1,174 @@
-/* 전체 배경 설정 */
-:root {
-  background-color: #121212;
-  color: white;
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-  justify-content: center;
-}
-
-/* 컨테이너 레이아웃 */
-.container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  max-width: 500px;
+/* 전체 컨테이너 (Dark Mode) */
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
   text-align: center;
 }
 
-h1 {
-  color: #00ff88;
-  margin-bottom: 2rem;
-  font-size: 2.5rem;
+body {
+  background-color: #1e1e1e;
+  color: #ffffff;
+  font-family: 'Pretendard', sans-serif;
+  margin: 0;
+  min-height: 100vh;
 }
 
-/* 카드 박스 스타일 */
-.card {
-  background-color: #1e1e1e;
-  padding: 2.5rem;
-  border-radius: 16px;
-  width: 100%;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+.app-container {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-}
-
-/* 입력창 */
-input {
-  padding: 1rem;
-  border-radius: 8px;
-  border: 1px solid #333;
-  background: #2a2a2a;
-  color: white;
-  font-size: 1rem;
-  outline: none;
-  transition: 0.2s;
-}
-
-input:focus {
-  border-color: #00ff88;
-}
-
-input:disabled {
-  opacity: 0.5;
-}
-
-/* 버튼 */
-button {
-  padding: 1rem;
-  border-radius: 8px;
-  border: none;
-  background: #00ff88;
-  color: #121212;
-  font-size: 1.1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s;
-}
-
-button:hover:not(:disabled) {
-  background: #00cc6a;
-  transform: translateY(-2px);
-}
-
-button:disabled {
-  background: #555;
-  cursor: not-allowed;
-}
-
-/* 상태 메시지 */
-.status-text {
-  color: #aaa;
-  font-size: 0.9rem;
-  min-height: 1.2rem;
-}
-
-/* 로딩 스피너 애니메이션 */
-.loader {
-  border: 4px solid #333;
-  border-top: 4px solid #00ff88;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
+  align-items: center;
+  gap: 20px;
+  max-width: 800px;
   margin: 0 auto;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+h1 {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  color: #00d2d3;
 }
 
-/* 비디오 플레이어 */
-.result-video {
+.subtitle {
+  color: #c8d6e5;
+  margin-bottom: 2rem;
+}
+
+/* 입력창 섹션 */
+.input-section {
+  display: flex;
+  gap: 10px;
   width: 100%;
-  border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-  margin-top: 1rem;
-  animation: fadeIn 0.5s ease-in;
+  max-width: 600px;
+}
+
+input {
+  flex: 1;
+  padding: 15px;
+  font-size: 1.1rem;
+  border-radius: 10px;
+  border: 2px solid #576574;
+  background-color: #2f3640;
+  color: white;
+  outline: none;
+}
+
+input:focus {
+  border-color: #00d2d3;
+}
+
+.create-btn {
+  padding: 15px 30px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  border-radius: 10px;
+  border: none;
+  background-color: #00d2d3;
+  color: #2f3640;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.create-btn:hover:not(:disabled) {
+  background-color: #01a3a4;
+  transform: scale(1.05);
+}
+
+.create-btn:disabled {
+  background-color: #576574;
+  cursor: not-allowed;
+}
+
+/* [NEW] 트렌드 섹션 스타일 */
+.trend-section {
+  margin-top: 10px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.trend-btn {
+  background-color: #ff4757; /* 강렬한 레드 */
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 25px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s;
+  box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
+}
+
+.trend-btn:hover {
+  transform: scale(1.05);
+  background-color: #ff6b81;
+}
+
+.trend-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.trend-chip {
+  background-color: #2f3542;
+  color: #dfe4ea;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border: 1px solid #57606f;
+  transition: all 0.2s;
+}
+
+.trend-chip:hover {
+  background-color: #3742fa; /* 블루 */
+  color: white;
+  border-color: #3742fa;
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(55, 66, 250, 0.4);
+}
+
+/* 로딩 메시지 */
+.loading-msg {
+  margin-top: 20px;
+  color: #feca57;
+  font-size: 1.1rem;
+}
+
+/* 결과 섹션 */
+.result-section {
+  margin-top: 40px;
+  width: 100%;
+  text-align: center;
+  animation: fadeIn 1s ease-in;
+}
+
+.video-player {
+  width: 100%;
+  max-width: 400px; /* 쇼츠 비율 고려 */
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  border: 4px solid #2f3542;
+}
+
+.download-link a {
+  display: inline-block;
+  margin-top: 15px;
+  color: #00d2d3;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.download-link a:hover {
+  text-decoration: underline;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }

@@ -7,6 +7,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+key.txt
+
 # 가상환경 (venv, conda 등)
 venv/
 env/
@@ -65,4 +67,4 @@ backend/temp_*
 .DS_Store
 Thumbs.db
 .vscode/
-.idea/
+.idea/key.txt

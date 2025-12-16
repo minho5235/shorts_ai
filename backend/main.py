@@ -1,8 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware # 👈 추가
 from fastapi.staticfiles import StaticFiles #
+from sqlalchemy.orm import Session
 import models
-from database import engine
+from database import SessionLocal, engine
 import services
 import video_engine
 import os
@@ -50,61 +51,98 @@ def delete_file_force(filepath):
 
     print(f"💀 결국 삭제 실패 (수동 삭제 필요): {filepath}")
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 @app.get("/")
 def read_root():
     return {"message": "AI Shorts Maker Ready!"}
 
+# [NEW] 요즘 뭐 핫해? (트렌드 추천 API)
+@app.get("/trends")
+def read_trends():
+    try:
+        topics = services.get_hot_topics()
+        return {"status": "success", "topics": topics}
+    except Exception as e:
+        return {"status": "error", "msg": str(e)}
+
 @app.post("/create-shorts")
-async def create_shorts(topic: str):
+async def create_shorts(topic: str, db: Session = Depends(get_db)): # 👈 db 주입
     print(f"🚀 프로젝트 시작: {topic}")
     
-    # 1. 대본 작성
-    full_script = services.generate_script(topic)
-    print(f"✅ 대본 생성 완료: {len(full_script)}자")
-    
-    # 2. 문장 자르기
-    sentences = re.split(r'(?<=[.?!])\s+', full_script)
-    sentences = [s.strip() for s in sentences if len(s.strip()) > 1]
-    print(f"✂️ 총 {len(sentences)}개 문장으로 분할됨")
+    # [1] DB에 "작업 시작(PROCESSING)" 기록 남기기
+    new_request = models.VideoRequest(
+        topic=topic,
+        status="PROCESSING"
+    )
+    db.add(new_request)
+    db.commit()
+    db.refresh(new_request) # ID 발급 받음
+    print(f"💾 DB 기록 시작 (ID: {new_request.id})")
 
-    # 3. 오디오 생성
-    clip_data = [] 
-    for i, text in enumerate(sentences):
-        audio_filename = f"temp_audio_{i}.mp3"
-        await services.generate_audio(text, audio_filename)
-        clip_data.append({"text": text, "audio": audio_filename})
-        print(f"   Sound [{i+1}/{len(sentences)}] 생성 완료")
-
-    # 4. 배경 영상 준비
-    search_keyword = services.get_search_keyword(topic)
-    temp_video_path = f"temp_{topic}.mp4" # 임시 파일 이름
-    
-    video_path = video_engine.download_stock_video(search_keyword, 10, temp_video_path)
-    
-    if not video_path:
-        # 실패 시 오디오라도 지우고 종료
-        for item in clip_data: delete_file_force(item['audio'])
-        return {"status": "failed", "msg": "영상 소스 없음"}
-
-    # 5. 합치기 & 결과물 폴더에 저장
-    # [수정] results 폴더 안에 파일명 생성
-    output_filename = os.path.join(RESULTS_DIR, f"shorts_{topic}.mp4")
-    
     try:
-        final_path = video_engine.combine_clips(clip_data, video_path, output_filename)
-    except Exception as e:
-        print(f"❌ 영상 합성 중 에러 발생: {e}")
-        return {"status": "error", "msg": str(e)}
-    
-    # 6. 청소 (이제 끈질기게 지웁니다)
-    print("🧹 임시 파일 청소 시작...")
-    
-    # 오디오 파일들 삭제
-    for item in clip_data:
-        delete_file_force(item['audio'])
-            
-    # 배경 영상 파일 삭제 (temp_엔비디아.mp4)
-    delete_file_force(video_path)
+        # --- 기존 로직 시작 ---
+        
+        # 1. 대본 작성
+        full_script = services.generate_script(topic)
+        print(f"✅ 대본 생성 완료: {len(full_script)}자")
+        
+        # 2. 문장 자르기
+        sentences = re.split(r'(?<=[.?!])\s+', full_script)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 1]
 
-    print(f"✨ 모든 작업 완료! 결과물: {final_path}")
-    return {"status": "success", "file": final_path}
+        # 3. 오디오 생성
+        clip_data = [] 
+        for i, text in enumerate(sentences):
+            audio_filename = f"temp_audio_{i}.mp3"
+            await services.generate_audio(text, audio_filename)
+            clip_data.append({"text": text, "audio": audio_filename})
+
+        # 4. 배경 영상 준비
+        search_keyword = services.get_search_keyword(topic)
+        temp_video_path = f"temp_{topic}.mp4"
+        
+        video_path = video_engine.download_stock_video(search_keyword, 10, temp_video_path)
+        
+        if not video_path:
+            # 실패 시 DB 업데이트
+            new_request.status = "FAILED"
+            db.commit()
+            return {"status": "failed", "msg": "영상 소스 없음"}
+
+        safe_topic = re.sub(r'[\\/*?:"<>|]', "", topic) # 윈도우 금지 문자 제거
+        safe_topic = safe_topic.replace(" ", "_")
+        
+        # 5. 합치기
+        output_filename = os.path.join(RESULTS_DIR, f"shorts_{safe_topic}.mp4")
+        final_path = video_engine.combine_clips(clip_data, video_path, output_filename)
+        
+        # 6. 청소
+        for item in clip_data: delete_file_force(item['audio'])
+        delete_file_force(video_path)
+
+        # --- 기존 로직 끝 ---
+
+        # [2] 성공 시 DB 업데이트 (COMPLETED)
+        # 프론트에서 접근 가능한 URL로 저장 (예: /results/shorts_abc.mp4)
+        web_url = f"/results/shorts_{topic}.mp4"
+        
+        new_request.status = "COMPLETED"
+        new_request.script = full_script
+        new_request.video_url = web_url # 나중에 프론트에서 쓰기 편하게
+        db.commit()
+        
+        print(f"✨ DB 업데이트 완료 (상태: COMPLETED)")
+        return {"status": "success", "file": final_path}
+
+    except Exception as e:
+        # [3] 에러 발생 시 DB 업데이트 (FAILED)
+        print(f"❌ 에러 발생: {e}")
+        new_request.status = "FAILED"
+        db.commit()
+        return {"status": "error", "msg": str(e)}
