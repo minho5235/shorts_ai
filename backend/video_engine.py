@@ -2,8 +2,13 @@ import os
 import requests
 import random
 import numpy as np
+
+# [필수] Pillow 호환성 패치
+import PIL.Image
+if not hasattr(PIL.Image, 'ANTIALIAS'):
+    PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
+
 from PIL import Image, ImageDraw, ImageFont
-# 👇 [수정] vfx 추가 (영상 반복 루프를 효율적으로 처리하기 위해 필요)
 from moviepy.editor import VideoFileClip, AudioFileClip, ImageClip, CompositeVideoClip, concatenate_videoclips, vfx
 from dotenv import load_dotenv
 
@@ -11,7 +16,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 
-# 1. Pexels 영상 다운로드 (기존 로직 유지)
+# 1. 영상 다운로드 (화질 최적화 유지)
 def download_stock_video(query, duration, filename="temp_video.mp4"):
     headers = {"Authorization": PEXELS_API_KEY}
     
@@ -36,7 +41,6 @@ def download_stock_video(query, duration, filename="temp_video.mp4"):
                     for f in v["video_files"]:
                         w = f["width"]
                         h = f["height"]
-                        # 720p ~ 1080p 사이 적절한 화질 찾기
                         if 720 <= w <= 1920:
                             best_video_link = f["link"]
                             print(f"   🎯 딱 좋은 화질 발견! ({w}x{h})")
@@ -68,13 +72,13 @@ def download_stock_video(query, duration, filename="temp_video.mp4"):
             
     return None
 
-# 2. 자막 이미지 생성 (기존 유지)
+# [수정됨] 2. 자막 이미지 생성 (그림자 제거, 깔끔한 외곽선 스타일)
 def create_text_image(text, font_path, video_w, video_h):
     img = Image.new('RGBA', (video_w, video_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
-    # 폰트 크기: 너비의 6%
-    fontsize = int(video_w * 0.06)
+    # 폰트 크기: 영상 너비의 7%
+    fontsize = int(video_w * 0.07)
     
     try:
         font = ImageFont.truetype(font_path, fontsize) 
@@ -82,61 +86,74 @@ def create_text_image(text, font_path, video_w, video_h):
         font = ImageFont.load_default()
     
     max_width = video_w * 0.85
-    lines = []
-    current_line = ""
     
-    for char in text:
-        bbox = draw.textbbox((0, 0), current_line + char, font=font)
+    # 줄바꿈 로직
+    words = text.split(' ') 
+    lines = []
+    current_line_words = []
+    
+    for word in words:
+        test_line = ' '.join(current_line_words + [word])
+        bbox = draw.textbbox((0, 0), test_line, font=font)
         line_width = bbox[2] - bbox[0]
         
         if line_width <= max_width:
-            current_line += char
+            current_line_words.append(word)
         else:
-            lines.append(current_line)
-            current_line = char
-    lines.append(current_line)
-    
+            if current_line_words:
+                lines.append(' '.join(current_line_words))
+            current_line_words = [word]
+            
+    if current_line_words:
+        lines.append(' '.join(current_line_words))
+        
     final_text = "\n".join(lines)
     
-    bbox = draw.textbbox((0, 0), final_text, font=font)
+    # 줄 간격 (깔끔하게 떨어지도록 15% 정도)
+    line_spacing = int(fontsize * 0.15)
+    
+    # 전체 텍스트 박스 크기 계산
+    bbox = draw.multiline_textbbox((0, 0), final_text, font=font, align="center", spacing=line_spacing)
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
     
     x = (video_w - text_w) / 2
-    bottom_margin = video_h * 0.15 
+    bottom_margin = video_h * 0.2 
     y = video_h - text_h - bottom_margin 
     
-    shadow_color = (0, 0, 0, 255)
-    stroke_width = max(1, int(fontsize * 0.05))
+    # [스타일 핵심] 
+    # 그림자(offsets 루프) 다 없애고, 딱 'stroke_width' 하나만 사용해서 깔끔하게 처리
+    # 두께는 폰트 크기의 4% (너무 두껍지 않게)
+    stroke_width = max(1, int(fontsize * 0.04))
     
-    offsets = []
-    for i in range(1, stroke_width + 1):
-        offsets.extend([(i, i), (-i, -i), (i, -i), (-i, i), (i, 0), (-i, 0), (0, i), (0, -i)])
-        
-    for ox, oy in offsets:
-        draw.text((x+ox, y+oy), final_text, font=font, fill=shadow_color, align="center")
-    
-    draw.text((x, y), final_text, font=font, fill=(255, 255, 0, 255), align="center")
+    draw.multiline_text(
+        (x, y), 
+        final_text, 
+        font=font, 
+        fill=(255, 255, 0, 255),      # 글자색: 노랑
+        align="center", 
+        spacing=line_spacing,
+        stroke_width=stroke_width,    # 테두리 두께
+        stroke_fill=(0, 0, 0, 255)    # 테두리 색: 검정
+    )
     
     return np.array(img)
 
-# 3. 합치기 (🚀 최적화 적용됨)
+# 3. 합치기 (물리적 반복 + 리사이징 유지)
 def combine_clips(data_list, video_path, output_path):
     font_path = os.path.join(BASE_DIR, "fonts", "NanumGothic-Bold.ttf")
     if not os.path.exists(font_path): font_path = "arial.ttf"
 
     bg_video = VideoFileClip(video_path)
 
-    # [🚨 최적화 핵심 1] 1080p 이상이면 720p로 강제 리사이징 (속도 3배 향상)
+    # 1. 1080p -> 720p 다이어트
     if bg_video.h > 1280:
         print(f"📉 고화질 감지! 해상도 축소 중... ({bg_video.h}p -> 1280p)")
-        # 높이를 1280으로 맞추면 너비는 비율에 맞춰 자동 조절됨
         bg_video = bg_video.resize(height=1280)
 
     final_clips = []
     total_duration = 0
     
-    # 텍스트 이미지 생성 (리사이징된 크기에 맞춰서 생성됨 -> 여기서도 속도 이득)
     for item in data_list:
         text = item['text']
         audio_file = item['audio']
@@ -151,14 +168,14 @@ def combine_clips(data_list, video_path, output_path):
 
     content_clip = concatenate_videoclips(final_clips, method="compose")
     
-    # [🚨 최적화 핵심 2] vfx.loop 사용 (메모리 절약)
+    # 2. 물리적 반복 (에러 방지)
     if bg_video.duration < total_duration:
-        print(f"🔄 배경 영상 루프 적용 (길이 맞춤)")
-        bg_video = vfx.loop(bg_video, duration=total_duration)
-    else:
-        bg_video = bg_video.subclip(0, total_duration)
+        print(f"🔄 영상 길이 연장 (물리적 복사)")
+        n_loops = int(total_duration / bg_video.duration) + 2
+        bg_video = concatenate_videoclips([bg_video] * n_loops)
+    
+    bg_video = bg_video.subclip(0, total_duration)
         
-    # 9:16 비율 크롭 (중앙 기준)
     w, h = bg_video.size
     target_ratio = 9/16
     if w/h > target_ratio:
@@ -167,9 +184,8 @@ def combine_clips(data_list, video_path, output_path):
     
     final_video = CompositeVideoClip([bg_video, content_clip])
     
-    print("⏳ 렌더링 시작 (초고속 모드)...")
+    print("⏳ 렌더링 시작 (깔끔한 스타일)...")
 
-    # [🚨 최적화 핵심 3] ultrafast 프리셋
     final_video.write_videofile(
         output_path, 
         codec="libx264", 

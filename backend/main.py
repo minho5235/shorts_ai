@@ -86,14 +86,26 @@ async def create_shorts(topic: str, db: Session = Depends(get_db)): # 👈 db �
     print(f"💾 DB 기록 시작 (ID: {new_request.id})")
 
     try:
-        # --- 기존 로직 시작 ---
         
-        # 1. 대본 작성
-        full_script = services.generate_script(topic)
-        print(f"✅ 대본 생성 완료: {len(full_script)}자")
+        # [STEP 1] 사용자가 입력한 주제로 '최신 정보' 긁어오기 (핵심!)
+        print(f"🔍 '{topic}' 관련 최신 정보 검색 중...")
+        news_context = services.get_search_context(topic)
+        print(f"✅ 정보 수집 완료 (참고 자료 길이: {len(news_context)}자)")
+
+        # [STEP 2] 수집한 정보를 바탕으로 대본 작성
+        full_script = services.generate_script(topic, news_context)
+        print(f"✅ 대본 생성 완료")
+
+        clean_script = re.sub(r'\([^)]*\)', '', full_script)
+        # 2. [ ... ] 제거 (혹시 몰라서 추가)
+        clean_script = re.sub(r'\[[^]]*\]', '', clean_script)
+        # 3. 양옆 공백 제거
+        clean_script = clean_script.strip()
+
+        print(f"🧹 지문 제거 완료: {len(clean_script)}자")
         
         # 2. 문장 자르기
-        sentences = re.split(r'(?<=[.?!])\s+', full_script)
+        sentences = re.split(r'(?<=[.?!])\s+', clean_script)
         sentences = [s.strip() for s in sentences if len(s.strip()) > 1]
 
         # 3. 오디오 생성
