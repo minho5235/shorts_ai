@@ -3,126 +3,193 @@ import './App.css'
 
 function App() {
   const [topic, setTopic] = useState("")
+  const [script, setScript] = useState("") // AI가 써준 대본 저장
+  const [step, setStep] = useState(1) // 1:입력, 2:대본수정, 3:완료
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState("") // 로딩 메시지 세분화
   const [videoUrl, setVideoUrl] = useState(null)
   
-  // [NEW] 트렌드(뉴스 제목) 목록을 저장할 상태 변수
   const [trends, setTrends] = useState([]) 
 
-  // API 주소 (환경변수가 없으면 로컬호스트 사용)
   const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-  // 1. 영상 생성 요청 함수
-  const createShorts = async () => {
+  // [1단계] 대본 생성 요청
+  const generateScript = async () => {
     if (!topic) return;
     
     setIsLoading(true);
-    setVideoUrl(null); // 이전 영상 초기화
+    setLoadingMsg("AI 편집장이 뉴스를 분석하고 대본을 쓰고 있습니다... 📝");
 
     try {
-      // 백엔드로 POST 요청 보내기
-      const response = await fetch(`${API_BASE_URL}/create-shorts?topic=${encodeURIComponent(topic)}`, {
+      const response = await fetch(`${API_BASE_URL}/generate-script`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: topic })
       });
 
       const data = await response.json();
 
       if (data.status === "success") {
-        // 성공 시 영상 URL 설정
-        // 백엔드에서 받은 파일 경로를 웹 URL로 변환
-        const filename = data.file.split(/[/\\]/).pop(); // 파일명만 추출
-        setVideoUrl(`${API_BASE_URL}/results/${filename}`);
+        setScript(data.script); // 대본 상태 저장
+        setStep(2); // 수정 화면으로 이동
+      } else {
+        alert("대본 생성 실패: " + data.msg);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("서버 연결 실패");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // [2단계] 영상 제작 요청 (수정된 대본 사용)
+  const createVideo = async () => {
+    setIsLoading(true);
+    setLoadingMsg("AI가 영상을 찾고, 목소리를 입히고 있습니다... 🎬 (약 1분 소요)");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/make-video`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          topic: topic, 
+          final_script: script // 수정된 대본 전송
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        setVideoUrl(`${API_BASE_URL}${data.video_url}`);
+        setStep(3); // 결과 화면으로 이동
       } else {
         alert("영상 제작 실패: " + data.msg);
       }
     } catch (error) {
       console.error("Error:", error);
-      alert("서버 연결에 실패했습니다.");
+      alert("영상 제작 중 오류 발생");
     } finally {
-      setIsLoading(false); // 로딩 끝
+      setIsLoading(false);
     }
   };
 
-  // [NEW] 2. 핫한 주제(뉴스) 가져오는 함수
   const fetchTrends = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/trends`);
       const data = await response.json();
-      
-      if (data.status === "success") {
-        setTrends(data.topics); // 가져온 뉴스 제목 5개를 저장
-      } else {
-        alert("트렌드를 가져오는데 실패했습니다.");
-      }
+      if (data.status === "success") setTrends(data.topics);
     } catch (error) {
-      console.error("Error fetching trends:", error);
-      alert("서버 연결 실패! 백엔드가 켜져 있나요?");
+      console.error("Error:", error);
     }
   };
 
-  // [NEW] 3. 추천 주제 클릭 시 입력창에 넣기
   const handleTrendClick = (trendTitle) => {
-    setTopic(trendTitle); // 입력창 채우기
+    setTopic(trendTitle);
   };
+
+  // 처음으로 돌아가기
+  const resetAll = () => {
+    setStep(1);
+    setTopic("");
+    setScript("");
+    setVideoUrl(null);
+  }
 
   return (
     <div className="app-container">
       <h1>🎬 AI Shorts Maker</h1>
-      <p className="subtitle">키워드만 입력하면 대본부터 영상까지 1분 컷!</p>
       
-      {/* 입력 섹션 */}
-      <div className="input-section">
-        <input 
-          type="text" 
-          placeholder="주제를 입력하세요 (예: 비트코인)" 
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          disabled={isLoading}
-          onKeyDown={(e) => e.key === 'Enter' && createShorts()}
-        />
-        <button 
-          className="create-btn"
-          onClick={createShorts} 
-          disabled={isLoading || !topic}
-        >
-          {isLoading ? "제작 중... 🕒" : "영상 만들기 🚀"}
-        </button>
-      </div>
+      {/* --- [STEP 1] 주제 입력 화면 --- */}
+      {step === 1 && (
+        <div className="step-container">
+            <p className="subtitle">어떤 주제로 쇼츠를 만들까요?</p>
+            <div className="input-section">
+                <input 
+                    type="text" 
+                    placeholder="예: 비트코인 1억 돌파, 아이폰 16 출시" 
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && generateScript()}
+                    disabled={isLoading}
+                />
+                <button 
+                    className="create-btn"
+                    onClick={generateScript} 
+                    disabled={isLoading || !topic}
+                >
+                    {isLoading ? "분석 중..." : "대본 쓰기 📝"}
+                </button>
+            </div>
 
-      {/* [NEW] 트렌드 버튼 섹션 */}
-      <div className="trend-section">
-        <button className="trend-btn" onClick={fetchTrends}>
-          🔥 요즘 뭐 핫해? (실시간 추천받기)
-        </button>
-        
-        {/* 트렌드 목록이 있으면 보여주기 */}
-        {trends.length > 0 && (
-          <div className="trend-list">
-            {trends.map((t, index) => (
-              <div key={index} className="trend-chip" onClick={() => handleTrendClick(t)}>
-                {t}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 로딩 표시 */}
-      {isLoading && (
-        <div className="loading-msg">
-          <p>AI가 대본 쓰고, 영상 찾고, 편집 중입니다...</p>
-          <p>(약 30~60초 소요됩니다)</p>
+            <div className="trend-section">
+                <button className="trend-btn" onClick={fetchTrends}>
+                🔥 요즘 핫한 뉴스 추천받기
+                </button>
+                {trends.length > 0 && (
+                <div className="trend-list">
+                    {trends.map((t, index) => (
+                    <div key={index} className="trend-chip" onClick={() => handleTrendClick(t)}>
+                        {t}
+                    </div>
+                    ))}
+                </div>
+                )}
+            </div>
         </div>
       )}
 
-      {/* 결과 영상 섹션 */}
-      {videoUrl && (
-        <div className="result-section">
-          <h2>✨ 완성된 쇼츠</h2>
-          <video controls src={videoUrl} className="video-player" autoPlay></video>
-          <div className="download-link">
-            <a href={videoUrl} download>⬇️ 영상 다운로드</a>
-          </div>
+      {/* --- [STEP 2] 대본 수정 화면 --- */}
+      {step === 2 && (
+        <div className="step-container">
+            <h2>📝 대본 확인 및 수정</h2>
+            <p className="desc">AI가 쓴 대본입니다. 마음에 안 드는 부분은 직접 수정하세요!</p>
+            
+            <textarea 
+                className="script-editor"
+                value={script}
+                onChange={(e) => setScript(e.target.value)}
+                placeholder="여기서 대본을 자유롭게 수정하세요..."
+            />
+            
+            <div className="button-group">
+                <button className="secondary-btn" onClick={() => setStep(1)}>
+                    ⬅️ 다시 주제 정하기
+                </button>
+                <button 
+                    className="create-btn" 
+                    onClick={createVideo}
+                    disabled={isLoading}
+                >
+                    {isLoading ? "제작 중..." : "이대로 영상 만들기 🎬"}
+                </button>
+            </div>
+        </div>
+      )}
+
+      {/* --- [STEP 3] 결과 확인 화면 --- */}
+      {step === 3 && videoUrl && (
+        <div className="step-container">
+            <h2>✨ 완성된 쇼츠</h2>
+            <div className="video-wrapper">
+                <video controls src={videoUrl} className="video-player" autoPlay></video>
+            </div>
+            <div className="button-group">
+                <a href={videoUrl} download className="download-btn">
+                    ⬇️ 영상 다운로드
+                </a>
+                <button className="secondary-btn" onClick={resetAll}>
+                    🔄 처음으로
+                </button>
+            </div>
+        </div>
+      )}
+
+      {/* 공통 로딩 오버레이 */}
+      {isLoading && (
+        <div className="loading-overlay">
+            <div className="spinner"></div>
+            <p>{loadingMsg}</p>
         </div>
       )}
     </div>

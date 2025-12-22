@@ -1,7 +1,9 @@
-from fastapi import FastAPI, Depends
-from fastapi.middleware.cors import CORSMiddleware # 👈 추가
-from fastapi.staticfiles import StaticFiles #
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware 
+from fastapi.staticfiles import StaticFiles 
 from sqlalchemy.orm import Session
+from pydantic import BaseModel # 👈 데이터 주고받을 틀 (필수)
+from fastapi.concurrency import run_in_threadpool # 👈 서버 멈춤 방지용
 import models
 from database import SessionLocal, engine
 import services
@@ -9,7 +11,7 @@ import video_engine
 import os
 import re
 import time
-import shutil # 파일 이동 등을 위해 필요할 수 있음
+import shutil 
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -17,14 +19,13 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # 모든 곳에서 접속 허용
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 👇 [2] 결과물 폴더를 브라우저에 공개 (영상 재생용)
-# 이제 http://localhost:8000/results/파일명.mp4 로 접근 가능해짐
+# 결과물 폴더 설정
 RESULTS_DIR = "results"
 if not os.path.exists(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
@@ -32,37 +33,39 @@ if not os.path.exists(RESULTS_DIR):
 app.mount("/results", StaticFiles(directory=RESULTS_DIR), name="results")
 
 
-# [NEW] 끈질긴 삭제 함수 (최대 5번, 1초 간격으로 시도)
+# --- [NEW] 데이터 모델 정의 (프론트와 약속) ---
+
+# 1단계 요청: "주제만 줄게, 대본 써줘"
+class ScriptRequest(BaseModel):
+    topic: str
+
+# 2단계 요청: "확정된 대본 줄게, 영상 만들어줘"
+class VideoCreationRequest(BaseModel):
+    topic: str
+    final_script: str # 사용자가 수정한 최종 대본
+
+
+# --- 헬퍼 함수들 ---
+
 def delete_file_force(filepath):
-    if not os.path.exists(filepath):
-        return
-    
-    for i in range(5): # 5번 시도
+    if not os.path.exists(filepath): return
+    for i in range(5): 
         try:
             os.remove(filepath)
-            print(f"🗑️ 삭제 성공: {filepath}")
-            return # 성공하면 종료
-        except PermissionError:
-            print(f"⚠️ 삭제 실패 (잠김), 1초 뒤 재시도... ({i+1}/5)")
-            time.sleep(1) # 1초 대기
-        except Exception as e:
-            print(f"❌ 삭제 중 에러: {e}")
-            return
-
-    print(f"💀 결국 삭제 실패 (수동 삭제 필요): {filepath}")
+            return 
+        except:
+            time.sleep(1) 
+    print(f"💀 파일 삭제 실패: {filepath}")
 
 def get_db():
     db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    try: yield db
+    finally: db.close()
 
 @app.get("/")
 def read_root():
     return {"message": "AI Shorts Maker Ready!"}
 
-# [NEW] 요즘 뭐 핫해? (트렌드 추천 API)
 @app.get("/trends")
 def read_trends():
     try:
@@ -71,90 +74,107 @@ def read_trends():
     except Exception as e:
         return {"status": "error", "msg": str(e)}
 
-@app.post("/create-shorts")
-async def create_shorts(topic: str, db: Session = Depends(get_db)): # 👈 db 주입
-    print(f"🚀 프로젝트 시작: {topic}")
+
+# 👇 [1단계] 대본 생성 API (영상 제작 X, 텍스트만 반환)
+@app.post("/generate-script")
+async def generate_script_api(request: ScriptRequest):
+    topic = request.topic
+    print(f"📝 1단계: 대본 작성 요청 - {topic}")
     
-    # [1] DB에 "작업 시작(PROCESSING)" 기록 남기기
-    new_request = models.VideoRequest(
-        topic=topic,
-        status="PROCESSING"
-    )
+    try:
+        # 1. 뉴스 검색 및 편집장 분석
+        news_context = services.get_search_context(topic)
+        
+        # 2. 초안 대본 작성
+        full_script = services.generate_script(topic, news_context)
+        
+        # 3. 괄호 및 지문 제거 (1차 청소) - 사용자가 보기 편하게 미리 지워줌
+        clean_script = re.sub(r'\([^)]*\)', '', full_script) # (지문) 제거
+        clean_script = re.sub(r'\[[^]]*\]', '', clean_script) # [지문] 제거
+        clean_script = clean_script.strip()
+        
+        print(f"✅ 대본 생성 완료 ({len(clean_script)}자)")
+        
+        # 4. 프론트엔드로 대본 전송
+        return {
+            "status": "success", 
+            "topic": topic,
+            "script": clean_script,       # 이걸 프론트엔드 에디터에 뿌려주세요
+            "original_context": news_context # (선택) 참고용으로 보여줘도 됨
+        }
+        
+    except Exception as e:
+        print(f"❌ 대본 생성 실패: {e}")
+        return {"status": "error", "msg": str(e)}
+
+
+# 👇 [2단계] 영상 제작 API (사용자가 OK한 대본으로 제작)
+@app.post("/make-video")
+async def make_video_api(request: VideoCreationRequest, db: Session = Depends(get_db)):
+    topic = request.topic
+    script = request.final_script # 사용자가 수정한 최종 대본
+    
+    print(f"🎬 2단계: 영상 제작 시작 - {topic}")
+
+    # 1. DB에 "작업 시작(PROCESSING)" 기록
+    new_request = models.VideoRequest(topic=topic, status="PROCESSING")
     db.add(new_request)
     db.commit()
-    db.refresh(new_request) # ID 발급 받음
-    print(f"💾 DB 기록 시작 (ID: {new_request.id})")
+    db.refresh(new_request)
+    print(f"💾 DB 작업 ID: {new_request.id}")
 
     try:
-        
-        # [STEP 1] 사용자가 입력한 주제로 '최신 정보' 긁어오기 (핵심!)
-        print(f"🔍 '{topic}' 관련 최신 정보 검색 중...")
-        news_context = services.get_search_context(topic)
-        print(f"✅ 정보 수집 완료 (참고 자료 길이: {len(news_context)}자)")
-
-        # [STEP 2] 수집한 정보를 바탕으로 대본 작성
-        full_script = services.generate_script(topic, news_context)
-        print(f"✅ 대본 생성 완료")
-
-        clean_script = re.sub(r'\([^)]*\)', '', full_script)
-        # 2. [ ... ] 제거 (혹시 몰라서 추가)
-        clean_script = re.sub(r'\[[^]]*\]', '', clean_script)
-        # 3. 양옆 공백 제거
-        clean_script = clean_script.strip()
-
-        print(f"🧹 지문 제거 완료: {len(clean_script)}자")
-        
-        # 2. 문장 자르기
-        sentences = re.split(r'(?<=[.?!])\s+', clean_script)
+        # 2. 문장 자르기 (이미 정제된 대본이므로 바로 자름)
+        sentences = re.split(r'(?<=[.?!])\s+', script)
         sentences = [s.strip() for s in sentences if len(s.strip()) > 1]
 
         # 3. 오디오 생성
-        clip_data = [] 
+        clip_data = []
         for i, text in enumerate(sentences):
-            audio_filename = f"temp_audio_{i}.mp3"
+            # 파일명 충돌 방지를 위해 ID 포함
+            audio_filename = f"temp_audio_{new_request.id}_{i}.mp3" 
             await services.generate_audio(text, audio_filename)
             clip_data.append({"text": text, "audio": audio_filename})
 
         # 4. 배경 영상 준비
         search_keyword = services.get_search_keyword(topic)
-        temp_video_path = f"temp_{topic}.mp4"
+        temp_video_path = f"temp_video_{new_request.id}.mp4" # ID 포함
         
-        video_path = video_engine.download_stock_video(search_keyword, 10, temp_video_path)
+        video_path = video_engine.download_stock_video(search_keyword, 15, temp_video_path)
         
         if not video_path:
-            # 실패 시 DB 업데이트
-            new_request.status = "FAILED"
-            db.commit()
-            return {"status": "failed", "msg": "영상 소스 없음"}
+            raise Exception("배경 영상을 찾지 못했습니다.")
 
-        safe_topic = re.sub(r'[\\/*?:"<>|]', "", topic) # 윈도우 금지 문자 제거
-        safe_topic = safe_topic.replace(" ", "_")
-        
-        # 5. 합치기
-        output_filename = os.path.join(RESULTS_DIR, f"shorts_{safe_topic}.mp4")
-        final_path = video_engine.combine_clips(clip_data, video_path, output_filename)
-        
-        # 6. 청소
+        # 5. 영상 합치기 (오래 걸리므로 별도 스레드에서 실행!)
+        # 안전한 파일명 생성
+        safe_topic = re.sub(r'[\\/*?:"<>|]', "", topic).replace(" ", "_")
+        output_filename = os.path.join(RESULTS_DIR, f"shorts_{safe_topic}_{new_request.id}.mp4")
+
+        # [핵심] 서버 멈춤 방지를 위해 run_in_threadpool 사용
+        final_path = await run_in_threadpool(
+            video_engine.combine_clips,
+            clip_data,
+            video_path,
+            output_filename
+        )
+
+        # 6. 임시 파일 청소
         for item in clip_data: delete_file_force(item['audio'])
         delete_file_force(video_path)
 
-        # --- 기존 로직 끝 ---
-
-        # [2] 성공 시 DB 업데이트 (COMPLETED)
-        # 프론트에서 접근 가능한 URL로 저장 (예: /results/shorts_abc.mp4)
-        web_url = f"/results/shorts_{topic}.mp4"
+        # 7. 완료 처리 및 DB 업데이트
+        web_url = f"/results/{os.path.basename(final_path)}" # 웹에서 접근 가능한 경로
         
         new_request.status = "COMPLETED"
-        new_request.script = full_script
-        new_request.video_url = web_url # 나중에 프론트에서 쓰기 편하게
+        new_request.script = script # 최종 사용된 대본 저장
+        new_request.video_url = web_url
         db.commit()
         
-        print(f"✨ DB 업데이트 완료 (상태: COMPLETED)")
-        return {"status": "success", "file": final_path}
+        print(f"✨ 영상 제작 완료: {web_url}")
+        return {"status": "success", "video_url": web_url}
 
     except Exception as e:
-        # [3] 에러 발생 시 DB 업데이트 (FAILED)
-        print(f"❌ 에러 발생: {e}")
+        print(f"❌ 영상 제작 실패: {e}")
         new_request.status = "FAILED"
         db.commit()
         return {"status": "error", "msg": str(e)}
