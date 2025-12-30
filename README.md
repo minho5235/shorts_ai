@@ -60,7 +60,7 @@ graph TD
     User -->|대본 확정 및 제작 요청| API
     API -->|영상 검색| Pexels[Pexels API]
     API -->|음성 생성| TTS[Edge TTS]
-    API -->|렌더링 (MoviePy)| VideoEngine[Video Processing Logic]
+    API -->|렌더링 - MoviePy| VideoEngine[Video Processing Logic]
     VideoEngine -->|결과물 저장| Storage[Local Storage / DB]
     API -->|다운로드 URL| User
 
