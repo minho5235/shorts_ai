@@ -1,91 +1,99 @@
-# 🎬 AI Shorts Maker (AI 쇼츠 자동 생성기)
+# 🎬 AI Shorts Maker (News-to-Video Automation)
 
-> **키워드 하나만 입력하면, 대본 작성부터 영상 편집까지 1분 만에 끝!** > 생성형 AI(Gemini)와 영상 처리 기술(MoviePy)을 활용한 자동화 프로젝트입니다.
+> **최신 뉴스 트렌드 분석부터 대본 작성, 영상 편집까지 100% 자동화한 AI 숏폼 생성 서비스**
 
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![MoviePy](https://img.shields.io/badge/MoviePy-Video_Editing-FFCC00?style=for-the-badge)
-![Google Gemini](https://img.shields.io/badge/Google_Gemini-AI-4285F4?style=for-the-badge&logo=google&logoColor=white)
-
----
-
-## 📌 프로젝트 소개 (Project Overview)
-이 프로젝트는 **YouTube Shorts** 제작 과정을 100% 자동화하기 위해 개발되었습니다.  
-사용자가 주제(예: "비트코인", "엔비디아")만 입력하면, AI가 자동으로 다음 과정을 수행합니다.
-
-1.  **시나리오 작성:** Google Gemini API가 흥미로운 숏폼용 대본을 작성.
-2.  **리소스 수집:** 주제에 맞는 고화질 무료 영상(Pexels API)을 검색 및 다운로드.
-3.  **오디오 생성:** TTS(Text-to-Speech)를 활용하여 자연스러운 내레이션 생성.
-4.  **영상 편집:** FFmpeg 기반의 MoviePy를 사용하여 자막 합성, 오디오 싱크 조절, 배경 음악 삽입.
-5.  **최적화:** 모바일 환경(9:16)에 맞춘 반응형 자막 및 인코딩 최적화.
+![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.95+-009688?logo=fastapi)
+![React](https://img.shields.io/badge/React-18.0+-61DAFB?logo=react)
+![Gemini API](https://img.shields.io/badge/AI-Google%20Gemini-8E75B2)
+![MoviePy](https://img.shields.io/badge/Video-MoviePy-yellow)
 
 ---
 
-## 📸 실행 화면 (Preview)
-*(여기에 완성된 웹사이트 스크린샷이나, 구동되는 GIF를 넣으면 좋습니다)*
-> **1. 주제 입력** -> **2. 로딩(제작)** -> **3. 결과물 재생**
+## 📖 프로젝트 소개 (Project Overview)
+
+**AI Shorts Maker**는 사용자가 주제를 입력하거나 실시간 트렌드를 선택하면, AI가 자동으로 1분 내외의 **숏폼(Shorts) 뉴스 영상**을 제작해주는 웹 애플리케이션입니다.
+
+유튜브 크리에이터들이 뉴스 소싱, 대본 작성, 영상 편집에 많은 시간을 쏟는 문제에 착안하여, **Google News RSS**와 **LLM(Gemini)**, **TTS**, **영상 처리 라이브러리**를 결합해 콘텐츠 제작 시간을 획기적으로 단축(약 5분 이내)하는 것을 목표로 개발했습니다.
+
+### 🎯 주요 기능
+1.  **실시간 트렌드 분석**: Google News RSS를 크롤링하여 현재 가장 핫한 키워드 추출
+2.  **AI 편집장 & 작가 모드**: 
+    * **편집장(Editor)**: 수집된 뉴스 기사 10건을 분석하여 가장 중요한 '메인 토픽' 선정 및 팩트 체크
+    * **작가(Writer)**: 선정된 팩트를 바탕으로 시청 지속 시간을 늘리는 '후킹(Hooking)' 멘트가 포함된 대본 작성
+3.  **대본 커스터마이징**: AI가 작성한 대본을 사용자가 직접 수정/검수 가능 (Human-in-the-loop)
+4.  **원클릭 영상 렌더링**:
+    * 주제에 맞는 무료 스톡 영상(Pexels API) 자동 매칭
+    * TTS(Edge-TTS)를 활용한 자연스러운 음성 생성
+    * **MoviePy**를 활용한 자막 합성 및 영상 인코딩
 
 ---
 
 ## 🛠 기술 스택 (Tech Stack)
 
-### **Backend**
--   **Framework:** FastAPI (비동기 처리 및 빠른 API 응답)
--   **AI Model:** Google Gemini 1.5 Flash (대본 작성 및 검색어 추론)
--   **Video Processing:** MoviePy (영상 자르기, 합치기, 자막 렌더링)
--   **Resource:** Pexels API (배경 영상), gTTS (음성 합성)
--   **Optimization:** `ultrafast` 프리셋 인코딩, 멀티스레딩 적용
+### Backend
+* **Framework**: FastAPI (비동기 처리에 최적화된 고성능 프레임워크)
+* **Language**: Python
+* **AI/LLM**: Google Gemini-2.5-flash (빠른 응답 속도와 경제성 고려)
+* **Media Processing**: 
+    * `MoviePy`: 영상 병합 및 렌더링
+    * `Pillow (PIL)`: 자막 이미지 동적 생성 및 위치 계산
+    * `edge-tts`: MS Edge의 무료 TTS 엔진 활용
+* **Database**: MySQL (SQLAlchemy ORM 사용)
 
-### **Frontend**
--   **Framework:** React (Vite 기반)
--   **Styling:** CSS3 (Dark Mode, Responsive Design)
--   **State Management:** React Hooks (`useState`)
-
----
-
-## ⚙️ 주요 기능 (Key Features)
-
-### 1. 🧠 똑똑한 대본 작성 (AI Scripting)
--   단순 검색이 아닌, Gemini LLM을 통해 "유튜브 쇼츠 감성"의 톡톡 튀는 대본을 생성합니다.
--   문장 단위로 정밀하게 분할하여 영상의 리듬감을 살립니다.
-
-### 2. 🎥 스마트한 영상 소스 관리
--   **4K 필터링 로직:** 렌더링 속도 저하를 막기 위해 4K 영상은 제외하고 FHD/HD 영상만 선별합니다.
--   **백업 키워드 검색:** 특정 키워드(예: 신창섭) 영상이 없을 경우, 'Future', 'Technology' 등 대체 테마로 자동 재검색합니다.
-
-### 3. ⚡ 고성능 렌더링 파이프라인
--   **반응형 자막:** 영상 해상도(720p/1080p)에 따라 폰트 크기와 위치가 자동으로 조절됩니다.
--   **리소스 자동 관리:** 작업이 끝나면 임시 파일(mp3, mp4)을 강제 삭제하여 서버 용량을 확보합니다.
--   **속도 최적화:** CPU 스레드 활용 및 `ultrafast` 인코딩 옵션으로 렌더링 시간을 50% 이상 단축했습니다.
+### Frontend
+* **Library**: React (Vite)
+* **State Management**: useState (간결한 상태 관리)
+* **Communication**: Fetch API (RESTful 통신)
 
 ---
 
-## 🚀 설치 및 실행 방법 (Getting Started)
+## 🏗 시스템 아키텍처 (System Architecture)
 
-### 1. 환경 변수 설정 (.env)
-`backend` 폴더 안에 `.env` 파일을 생성하고 API 키를 입력하세요.
-```ini
-GOOGLE_API_KEY=your_gemini_api_key
-PEXELS_API_KEY=your_pexels_api_key
+```mermaid
+graph TD
+    User[사용자 Client] -->|주제 입력/선택| API[FastAPI Server]
+    API -->|RSS 크롤링| GNews[Google News]
+    API -->|기사 분석 및 대본 생성| Gemini[Gemini LLM]
+    API -->|대본 반환| User
+    
+    User -->|대본 확정 및 제작 요청| API
+    API -->|영상 검색| Pexels[Pexels API]
+    API -->|음성 생성| TTS[Edge TTS]
+    API -->|렌더링 (MoviePy)| VideoEngine[Video Processing Logic]
+    VideoEngine -->|결과물 저장| Storage[Local Storage / DB]
+    API -->|다운로드 URL| User
 
-2. 백엔드 실행 (Backend)
+
+기술적 도전 및 해결 (Technical Challenges)
+1. 비동기 서버의 Blocking 문제 해결
+문제: FastAPI는 비동기(Async) 프레임워크지만, MoviePy를 이용한 영상 렌더링은 CPU를 많이 사용하는 동기(Sync) 작업이라 서버 전체가 멈추는 현상(Blocking) 발생.
+
+해결: fastapi.concurrency.run_in_threadpool을 도입하여 렌더링 작업을 별도 스레드 풀에서 실행함으로써, 영상 제작 중에도 다른 API 요청(트렌드 조회 등)을 처리할 수 있도록 개선했습니다.
+
+2. 가독성 높은 동적 자막 구현
+문제: 영상 해상도나 텍스트 길이에 따라 자막이 잘리거나 위치가 어긋나는 문제.
+
+해결: Pillow의 ImageDraw 기능을 활용해 텍스트의 Bounding Box를 계산하고, anchor="ma" (Middle-Ascender) 속성을 사용하여 텍스트 길이가 달라도 항상 화면 중앙 하단에 정렬되도록 알고리즘을 구현했습니다. 또한 폰트 크기를 영상 너비의 7%로 반응형으로 설정했습니다.
+
+3. LLM 환각(Hallucination) 최소화 - '페르소나' 기법
+문제: 단순히 "대본 써줘"라고 요청하면 AI가 없는 사실을 지어내는 현상 발생.
+
+해결: 프롬프트 엔지니어링을 '뉴스 수집(Raw Data)' -> '편집장(분석 및 팩트 선정)' -> '작가(대본화)'의 3단계로 분리했습니다. 편집장 단계에서 10개의 뉴스 기사를 교차 검증하게 하여 신뢰도를 높였습니다.
+
+
+📂 폴더 구조 (Directory Structure)
 Bash
 
-cd backend
-# 가상환경 활성화 (선택)
-# 라이브러리 설치
-pip install -r requirements.txt
-
-# 서버 시작
-uvicorn main:app --reload
-
-3. 프론트엔드 실행 (Frontend)
-Bash
-
-cd frontend
-# 의존성 설치
-npm install
-
-# 개발 서버 시작
-npm run dev# shorts_ai
+📦 AI-Shorts-Maker
+├── 📂 frontend          # React UI 애플리케이션
+│   ├── src/App.jsx      # 메인 UI 및 상태 관리 로직
+│   └── ...
+├── 📂 backend           # FastAPI 서버 애플리케이션
+│   ├── main.py          # API 엔트리포인트 & 비동기 스레드 관리
+│   ├── services.py      # 외부 서비스 연동 (Gemini, RSS, TTS)
+│   ├── video_engine.py  # 영상 처리 엔진 (MoviePy, Pillow 자막 처리)
+│   ├── models.py        # 데이터베이스 스키마 정의
+│   ├── database.py      # DB 세션 설정
+│   └── results/         # 생성된 영상 결과물 저장소
+└── README.md

@@ -101,7 +101,7 @@ def generate_script(topic: str, context: str):
     [지시사항]
     1. 위 [편집장의 핵심 분석 리포트]에 선정된 **단 하나의 메인 사건**에만 집중해서 대본을 작성하세요. (여러 소식 나열 금지)
     2. 말투: 친구에게 말하듯 친근하고 텐션 높은 반말 (야, 대박, 있잖아 등 사용).
-    3. 길이: 읽었을 때 50초 내외.
+    3. 길이: 읽었을 때 1분 내외.
     4. 구성:
        - **후킹:** 첫 문장은 시청자가 지나치지 못하게 강력한 질문이나 감탄사로 시작.
        - **본론:** 사건의 핵심 내용을 쉽고 빠르게 요약.
@@ -116,7 +116,7 @@ def generate_script(topic: str, context: str):
 async def generate_audio(text: str, filename="output_audio.mp3"):
     # 목소리 종류: ko-KR-SunHiNeural (여자), ko-KR-InJoonNeural (남자)
     VOICE = "ko-KR-SunHiNeural" 
-    communicate = edge_tts.Communicate(text, VOICE)
+    communicate = edge_tts.Communicate(text, VOICE, rate="+15%")
     await communicate.save(filename)
     return filename
 

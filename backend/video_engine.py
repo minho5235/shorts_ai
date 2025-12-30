@@ -9,20 +9,19 @@ if not hasattr(PIL.Image, 'ANTIALIAS'):
     PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
 
 from PIL import Image, ImageDraw, ImageFont
-from moviepy.editor import VideoFileClip, AudioFileClip, ImageClip, CompositeVideoClip, concatenate_videoclips, vfx
+from moviepy.editor import VideoFileClip, AudioFileClip, ImageClip, CompositeVideoClip, concatenate_videoclips
 from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 
-# 1. 영상 다운로드 (화질 최적화 유지)
+# 1. 영상 다운로드
 def download_stock_video(query, duration, filename="temp_video.mp4"):
     headers = {"Authorization": PEXELS_API_KEY}
     
-    search_queries = [query]
-    fallback_keywords = ["technology", "business", "city", "future", "abstract", "nature"]
-    search_queries.extend(fallback_keywords)
+    # 검색어 확장
+    search_queries = [query, "technology", "business", "city", "future", "abstract", "nature"]
 
     for keyword in search_queries:
         print(f"🔍 Pexels 검색 시도: '{keyword}'")
@@ -37,34 +36,28 @@ def download_stock_video(query, duration, filename="temp_video.mp4"):
                 best_video_link = None
                 random.shuffle(data["videos"]) 
                 
+                # 720p 이상 화질 우선 선택
                 for v in data["videos"]:
                     for f in v["video_files"]:
                         w = f["width"]
-                        h = f["height"]
                         if 720 <= w <= 1920:
                             best_video_link = f["link"]
-                            print(f"   🎯 딱 좋은 화질 발견! ({w}x{h})")
                             break 
                     if best_video_link: break
                 
+                # 없으면 아무거나
                 if not best_video_link:
-                      print("   ⚠️ 딱 맞는 화질이 없어서 차선책을 찾습니다.")
                       for v in data["videos"]:
-                        for f in v["video_files"]:
-                            if f["width"] >= 720:
-                                best_video_link = f["link"]
-                                break
-                        if best_video_link: break
+                        if v["video_files"]:
+                            best_video_link = v["video_files"][0]["link"]
+                            break
 
-                if not best_video_link:
-                    print("   ❌ 쓸만한 화질이 없어서 넘어갑니다.")
-                    continue
-
-                print(f"🎬 영상 다운로드 시작... (주제: {keyword})")
-                with open(filename, 'wb') as f:
-                    f.write(requests.get(best_video_link).content)
-                print("✅ 다운로드 완료")
-                return filename
+                if best_video_link:
+                    print(f"🎬 영상 다운로드 시작... (주제: {keyword})")
+                    with open(filename, 'wb') as f:
+                        f.write(requests.get(best_video_link).content)
+                    print("✅ 다운로드 완료")
+                    return filename
                 
         except Exception as e:
             print(f"⚠️ 에러 발생: {e}")
@@ -72,7 +65,7 @@ def download_stock_video(query, duration, filename="temp_video.mp4"):
             
     return None
 
-# [수정됨] 2. 자막 이미지 생성 (그림자 제거, 깔끔한 외곽선 스타일)
+# [핵심 수정] 2. 자막 이미지 생성 (anchor='mm' 사용으로 완벽한 중앙 정렬)
 def create_text_image(text, font_path, video_w, video_h):
     img = Image.new('RGBA', (video_w, video_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
@@ -109,46 +102,50 @@ def create_text_image(text, font_path, video_w, video_h):
         
     final_text = "\n".join(lines)
     
-    # 줄 간격 (깔끔하게 떨어지도록 15% 정도)
+    # 줄 간격
     line_spacing = int(fontsize * 0.15)
     
-    # 전체 텍스트 박스 크기 계산
+    # [좌표 계산 변경]
+    # 복잡한 계산 다 버리고, 화면 정중앙(center_x)을 기준으로 잡습니다.
+    center_x = video_w / 2
+    
+    # Y좌표: 화면 아래에서 20% 위로 띄움
+    # 텍스트 높이만 계산해서 위치 잡기
     bbox = draw.multiline_textbbox((0, 0), final_text, font=font, align="center", spacing=line_spacing)
-    text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
+    bottom_margin = video_h * 0.2
+    y = video_h - text_h - bottom_margin
     
-    x = (video_w - text_w) / 2
-    bottom_margin = video_h * 0.2 
-    y = video_h - text_h - bottom_margin 
-    
-    # [스타일 핵심] 
-    # 그림자(offsets 루프) 다 없애고, 딱 'stroke_width' 하나만 사용해서 깔끔하게 처리
-    # 두께는 폰트 크기의 4% (너무 두껍지 않게)
     stroke_width = max(1, int(fontsize * 0.04))
     
+    # [핵심] anchor="ma" (Middle-Ascender)
+    # 의미: "내가 지정한 좌표(center_x, y)가 텍스트의 가로 중앙(M)이자 상단(A)이 되게 그려라"
+    # 이렇게 하면 글자 길이가 달라져도 무조건 가운데로 옵니다.
     draw.multiline_text(
-        (x, y), 
+        (center_x, y), 
         final_text, 
         font=font, 
-        fill=(255, 255, 0, 255),      # 글자색: 노랑
+        fill=(255, 255, 0, 255),      
         align="center", 
         spacing=line_spacing,
-        stroke_width=stroke_width,    # 테두리 두께
-        stroke_fill=(0, 0, 0, 255)    # 테두리 색: 검정
+        stroke_width=stroke_width,    
+        stroke_fill=(0, 0, 0, 255),
+        anchor="ma"  # 👈 여기가 바뀐 핵심입니다!
     )
     
     return np.array(img)
 
-# 3. 합치기 (물리적 반복 + 리사이징 유지)
+# 3. 합치기
 def combine_clips(data_list, video_path, output_path):
+    # 폰트 경로 확인
     font_path = os.path.join(BASE_DIR, "fonts", "NanumGothic-Bold.ttf")
-    if not os.path.exists(font_path): font_path = "arial.ttf"
+    # 폰트 없으면 시스템 기본 폰트로 대체 (깨짐 방지용)
+    if not os.path.exists(font_path): 
+        font_path = "C:/Windows/Fonts/malgunbd.ttf" # 윈도우 맑은고딕
 
     bg_video = VideoFileClip(video_path)
 
-    # 1. 1080p -> 720p 다이어트
     if bg_video.h > 1280:
-        print(f"📉 고화질 감지! 해상도 축소 중... ({bg_video.h}p -> 1280p)")
         bg_video = bg_video.resize(height=1280)
 
     final_clips = []
@@ -168,9 +165,7 @@ def combine_clips(data_list, video_path, output_path):
 
     content_clip = concatenate_videoclips(final_clips, method="compose")
     
-    # 2. 물리적 반복 (에러 방지)
     if bg_video.duration < total_duration:
-        print(f"🔄 영상 길이 연장 (물리적 복사)")
         n_loops = int(total_duration / bg_video.duration) + 2
         bg_video = concatenate_videoclips([bg_video] * n_loops)
     
@@ -184,7 +179,7 @@ def combine_clips(data_list, video_path, output_path):
     
     final_video = CompositeVideoClip([bg_video, content_clip])
     
-    print("⏳ 렌더링 시작 (깔끔한 스타일)...")
+    print("⏳ 렌더링 시작 (자막 위치 교정됨)...")
 
     final_video.write_videofile(
         output_path, 

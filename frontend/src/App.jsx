@@ -18,7 +18,7 @@ function App() {
     if (!topic) return;
     
     setIsLoading(true);
-    setLoadingMsg("AI 편집장이 뉴스를 분석하고 대본을 쓰고 있습니다... 📝");
+    setLoadingMsg("대본을 쓰고 있습니다... 📝");
 
     try {
       const response = await fetch(`${API_BASE_URL}/generate-script`, {
@@ -46,7 +46,7 @@ function App() {
   // [2단계] 영상 제작 요청 (수정된 대본 사용)
   const createVideo = async () => {
     setIsLoading(true);
-    setLoadingMsg("AI가 영상을 찾고, 목소리를 입히고 있습니다... 🎬 (약 1분 소요)");
+    setLoadingMsg("영상 만드는중... 🎬 (약 5분 소요)");
 
     try {
       const response = await fetch(`${API_BASE_URL}/make-video`, {
