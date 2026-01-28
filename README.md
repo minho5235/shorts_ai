@@ -10,6 +10,19 @@
 
 ---
 
+## 📺 실제 운영 채널 (Live Demo)
+
+**"이 코드로 만든 영상, 퀄리티가 궁금하신가요?"**
+
+이 프로젝트의 소스 코드를 사용하여 **100% AI가 제작한 영상**들이 업로드되는 실제 운영 채널입니다.
+아래 버튼을 클릭하여 AI가 만든 대본, 목소리, 영상 편집 결과물을 직접 확인해보세요!
+
+<a href="https://www.youtube.com/@이일컷" target="_blank">
+  <img src="https://img.shields.io/badge/YouTube_Channel-이일컷_(@이일컷)-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="유튜브 채널 바로가기" />
+</a>
+
+---
+
 ## 📖 프로젝트 소개 (Project Overview)
 
 **AI Shorts Maker**는 사용자가 주제를 입력하거나 실시간 트렌드를 선택하면, AI가 자동으로 1분 내외의 **숏폼(Shorts) 뉴스 영상**을 제작해주는 웹 애플리케이션입니다.
